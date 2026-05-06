@@ -254,6 +254,7 @@ def plot_weights_over_time(weights_dict, asset_labels, universe_name, filename):
 
         axes[i].set_title(f"{method} Weights — {universe_name}")
         axes[i].set_ylabel("Weight")
+        axes[i].set_ylim(0, 1)
         axes[i].grid(True)
 
     handles, labels = axes[0].get_legend_handles_labels()
@@ -283,6 +284,75 @@ def plot_quantitative_stability(results, universe_name, filename):
     save_plot(filename)
 
 
+
+# -----------------------------
+# 3. PLOTS (5.3 Drawdown Analysis)
+# -----------------------------
+# Drawdown + Time Under Water
+def plot_drawdown_with_recovery(returns_df, universe_name, filename):
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    recovery_stats = {}
+
+    for col in returns_df.columns:
+        returns = returns_df[col]
+
+        wealth = (1 + returns).cumprod()
+        peak = wealth.cummax()
+        drawdown = wealth / peak - 1
+
+        ax.plot(drawdown.index, drawdown, label=col)
+
+        # --- Compute recovery time ---
+        trough = drawdown.idxmin()
+        peak_before = wealth.loc[:trough].idxmax()
+
+        recovery = wealth.loc[trough:]
+        recovery_date = recovery[recovery >= wealth.loc[peak_before]].index
+
+        if len(recovery_date) > 0:
+            recovery_date = recovery_date[0]
+            time_under_water = (recovery_date - trough).days / 30
+        else:
+            time_under_water = np.nan
+
+        recovery_stats[col] = time_under_water
+
+        # Mark trough
+        ax.scatter(trough, drawdown.loc[trough], color="red", s=40)
+
+    ax.set_title(f"Drawdowns with Recovery — {universe_name}", fontsize=14, fontweight="bold")
+    ax.set_ylabel("Drawdown")
+    ax.set_xlabel("Date")
+    ax.grid(True)
+    ax.legend()
+
+    fig.tight_layout()
+    fig.savefig(f"plots/{filename}", dpi=150, bbox_inches="tight")
+
+    plt.show()        # 👈 show on screen
+    plt.close(fig)    # 👈 then close to avoid memory issues
+
+    print(f"  ✓ Saved: plots/{filename}")
+
+    return recovery_stats
+
+
+# Recovery Time Table
+def print_recovery_table(recovery_stats, universe_name):
+    print("\n" + "═" * 50)
+    print(f"  RECOVERY TIME (Months) — {universe_name}")
+    print("═" * 50)
+
+    for k, v in recovery_stats.items():
+        if np.isnan(v):
+            print(f"  {k:<10}  Not recovered")
+        else:
+            print(f"  {k:<10}  {v:.1f} months")
+
+    print("═" * 50 + "\n")
+
+
 # -----------------------------
 # 4. ANALYSIS PIPELINE
 # -----------------------------
@@ -310,31 +380,31 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
     print_signal_summary(combined_signal, momentum, trend, asset_labels, universe_name)
 
     print("Step 3: Generating plots...")
-    plot_signal_heatmap(
-        combined_signal,
-        asset_labels,
-        f"Combined Signal Heatmap — {universe_name}",
-        f"{file_prefix}_signal_heatmap.png",
-    )
-    plot_average_signal(
-        momentum,
-        trend,
-        combined_signal,
-        f"Average Signal Strength Over Time — {universe_name}",
-        f"{file_prefix}_signal_average.png",
-    )
-    plot_signal_dispersion(
-        combined_signal,
-        f"Cross-Sectional Signal Dispersion — {universe_name}",
-        f"{file_prefix}_signal_dispersion.png",
-    )
-    plot_ranking_turnover(
-        combined_signal,
-        f"Signal Ranking Turnover Over Time — {universe_name}",
-        f"{file_prefix}_signal_ranking_turnover.png",
-    )
+    # plot_signal_heatmap(
+    #     combined_signal,
+    #     asset_labels,
+    #     f"Combined Signal Heatmap — {universe_name}",
+    #     f"{file_prefix}_signal_heatmap.png",
+    # )
+    # plot_average_signal(
+    #     momentum,
+    #     trend,
+    #     combined_signal,
+    #     f"Average Signal Strength Over Time — {universe_name}",
+    #     f"{file_prefix}_signal_average.png",
+    # )
+    # plot_signal_dispersion(
+    #     combined_signal,
+    #     f"Cross-Sectional Signal Dispersion — {universe_name}",
+    #     f"{file_prefix}_signal_dispersion.png",
+    # )
+    # plot_ranking_turnover(
+    #     combined_signal,
+    #     f"Signal Ranking Turnover Over Time — {universe_name}",
+    #     f"{file_prefix}_signal_ranking_turnover.png",
+    # )
 
-    print(f"\n✓ All plots 5.1 saved to /plots for {universe_name}")
+    # print(f"\n✓ All plots 5.1 saved to /plots for {universe_name}")
 
     print("Step 4: Running allocation analysis...")
 
@@ -360,6 +430,18 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         universe_name,
         f"{file_prefix}_stability_metrics.png",
     )
+
+    print("Step 6: Generating plots 5.3...")
+    recovery_stats = plot_drawdown_with_recovery(
+        returns_df,
+        universe_name,
+        f"{file_prefix}_drawdowns.png"
+    )
+
+    print_recovery_table(recovery_stats, universe_name)
+
+
+
 
 
 # -----------------------------

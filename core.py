@@ -224,20 +224,20 @@ def plot_drawdowns(returns_df, title):
     plt.show()
 
 
-def plot_weights_over_time(weights_dict):
-    methods = list(weights_dict.keys())
+# def plot_weights_over_time(weights_dict):
+#     methods = list(weights_dict.keys())
 
-    fig, axes = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
+#     fig, axes = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
 
-    for i, method in enumerate(methods):
-        weights = weights_dict[method]
-        weights.plot(ax=axes[i])
-        axes[i].set_title(f"{method} Weights Over Time")
-        axes[i].set_ylabel("Weight")
-        axes[i].set_ylim(0, 1)   # 🔥 FIX: force same scale
-        axes[i].grid(True)
+#     for i, method in enumerate(methods):
+#         weights = weights_dict[method]
+#         weights.plot(ax=axes[i])
+#         axes[i].set_title(f"{method} Weights Over Time")
+#         axes[i].set_ylabel("Weight")
+#         axes[i].set_ylim(0, 1)
+#         axes[i].grid(True)
 
-    axes[-1].set_xlabel("Date")
+#     axes[-1].set_xlabel("Date")
 
-    plt.tight_layout()
-    plt.show()
+#     plt.tight_layout()
+#     plt.show()
