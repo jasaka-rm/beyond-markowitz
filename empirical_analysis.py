@@ -12,6 +12,8 @@ from core import (
     compute_momentum_signal,
     compute_trend_signal,
     combine_signals,
+    run_backtest, 
+    summary_table,
 )
 
 from config_etf import (
@@ -92,7 +94,7 @@ def print_signal_summary(combined_signal, momentum_signal, trend_signal, asset_l
 
 
 # -----------------------------
-# 3. PLOTS
+# 3. PLOTS (5.1 Signal Validation) (Allocation Stability Analysis)
 # -----------------------------
 def plot_signal_heatmap(combined_signal, asset_labels, title, filename):
     data = combined_signal.rename(columns=asset_labels).T
@@ -236,37 +238,47 @@ def plot_ranking_turnover(combined_signal, title, filename):
     save_plot(filename)
 
 
-def plot_signal_strategy(combined_signal, monthly_returns, title, filename, top_n=2):
-    returns_list = []
 
-    for date in combined_signal.index:
-        if date not in monthly_returns.index:
-            continue
+# -----------------------------
+# 3. PLOTS (5.2 Allocation Stability Analysis)
+# -----------------------------
+# Weights evolution
+def plot_weights_over_time(weights_dict, asset_labels, universe_name, filename):
+    methods = list(weights_dict.keys())
 
-        signal_t = combined_signal.loc[date].dropna()
-        ret_t = monthly_returns.loc[date].reindex(signal_t.index)
+    fig, axes = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
 
-        long_assets = signal_t.nlargest(top_n).index
-        long_ret = ret_t[long_assets].mean()
-        bench_ret = ret_t.mean()
+    for i, method in enumerate(methods):
+        weights = weights_dict[method].rename(columns=asset_labels)
+        weights.plot(ax=axes[i], legend=False)
 
-        returns_list.append({
-            "date": date,
-            "signal_long": long_ret,
-            "equal_weight": bench_ret,
-        })
+        axes[i].set_title(f"{method} Weights — {universe_name}")
+        axes[i].set_ylabel("Weight")
+        axes[i].grid(True)
 
-    df = pd.DataFrame(returns_list).set_index("date")
-    cumulative = (1 + df).cumprod()
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, title="Assets", loc="center left", bbox_to_anchor=(1.01, 0.5))
 
-    fig, ax = plt.subplots(figsize=(13, 5))
-    cumulative["signal_long"].plot(ax=ax, color="#2563EB", linewidth=2.2, label=f"Long top-{top_n} (signal)")
-    cumulative["equal_weight"].plot(ax=ax, color="#94A3B8", linewidth=1.8, linestyle="--", label="Equal weight (benchmark)")
+    axes[-1].set_xlabel("Date")
+    fig.suptitle(f"Evolution of Portfolio Weights — {universe_name}", fontsize=14)
 
-    ax.set_title(title, fontsize=14, fontweight="bold")
-    ax.set_ylabel("Growth of $1", fontsize=10)
-    ax.set_xlabel("Date", fontsize=10)
-    ax.legend(fontsize=10)
+    save_plot(filename)
+
+# Estability bar chart
+def plot_quantitative_stability(results, universe_name, filename):
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
+
+    results["Weight Stability"].plot(kind="bar", ax=axes[0], color="#7C3AED")
+    axes[0].set_title("Weight Stability")
+    axes[0].set_ylabel("Std of weights")
+    axes[0].grid(axis="y")
+
+    results["Average Turnover"].plot(kind="bar", ax=axes[1], color="#D97706")
+    axes[1].set_title("Turnover")
+    axes[1].set_ylabel("Average turnover")
+    axes[1].grid(axis="y")
+
+    fig.suptitle(f"Stability Metrics — {universe_name}", fontsize=14)
 
     save_plot(filename)
 
@@ -290,13 +302,7 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
 
     momentum = momentum.reindex(combined_signal.index)
     trend = trend.reindex(combined_signal.index)
-    # monthly_returns = compute_returns(to_monthly_prices(prices)).reindex(combined_signal.index)
     monthly_returns = compute_returns(prices).reindex(combined_signal.index)
-
-
-
-
-
 
 
     print(f"  ✓ Done in {time.time() - t0:.1f}s")
@@ -327,15 +333,33 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         f"Signal Ranking Turnover Over Time — {universe_name}",
         f"{file_prefix}_signal_ranking_turnover.png",
     )
-    plot_signal_strategy(
-        combined_signal,
-        monthly_returns,
-        f"Signal Strategy: Long Top-2 Assets vs Equal Weight — {universe_name}",
-        f"{file_prefix}_signal_strategy.png",
-        top_n=2,
+
+    print(f"\n✓ All plots 5.1 saved to /plots for {universe_name}")
+
+    print("Step 4: Running allocation analysis...")
+
+    returns_df, weights_dict = run_backtest(
+        monthly_returns=monthly_returns,
+        combined_signal=combined_signal,
+        window=36 if "ETF" in universe_name else 12,
     )
 
-    print(f"\n✓ All plots saved to /plots for {universe_name}")
+    results = summary_table(returns_df, weights_dict)
+    print(results.round(4))
+    
+    print("Step 5: Generating plots 5.2...")
+    plot_weights_over_time(
+    weights_dict,
+    asset_labels,
+    universe_name,
+    f"{file_prefix}_weights.png",
+)
+
+    plot_quantitative_stability(
+        results,
+        universe_name,
+        f"{file_prefix}_stability_metrics.png",
+    )
 
 
 # -----------------------------
@@ -363,3 +387,4 @@ if __name__ == "__main__":
         universe_name="Crypto Universe",
         file_prefix="crypto",
     )
+    

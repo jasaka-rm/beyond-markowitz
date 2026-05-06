@@ -234,6 +234,7 @@ def plot_weights_over_time(weights_dict):
         weights.plot(ax=axes[i])
         axes[i].set_title(f"{method} Weights Over Time")
         axes[i].set_ylabel("Weight")
+        axes[i].set_ylim(0, 1)   # 🔥 FIX: force same scale
         axes[i].grid(True)
 
     axes[-1].set_xlabel("Date")
