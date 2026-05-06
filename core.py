@@ -193,35 +193,35 @@ def summary_table(returns_df, weights_dict):
 # -----------------------------
 # 6. PLOTS
 # -----------------------------
-def plot_cumulative_returns(returns_df, title):
-    fig, ax = plt.subplots(figsize=(10, 6))
+# def plot_cumulative_returns(returns_df, title):
+#     fig, ax = plt.subplots(figsize=(10, 6))
 
-    cumulative = (1 + returns_df).cumprod()
-    cumulative.plot(ax=ax)
+#     cumulative = (1 + returns_df).cumprod()
+#     cumulative.plot(ax=ax)
 
-    ax.set_title(title)
-    ax.set_ylabel("Growth of 1€")
-    ax.grid(True)
+#     ax.set_title(title)
+#     ax.set_ylabel("Growth of 1€")
+#     ax.grid(True)
 
-    plt.show()
+#     plt.show()
 
 
-def plot_drawdowns(returns_df, title):
-    fig, ax = plt.subplots(figsize=(10, 6))
+# def plot_drawdowns(returns_df, title):
+#     fig, ax = plt.subplots(figsize=(10, 6))
 
-    dd_df = pd.DataFrame(index=returns_df.index)
+#     dd_df = pd.DataFrame(index=returns_df.index)
 
-    for col in returns_df.columns:
-        wealth = (1 + returns_df[col]).cumprod()
-        dd_df[col] = wealth / wealth.cummax() - 1
+#     for col in returns_df.columns:
+#         wealth = (1 + returns_df[col]).cumprod()
+#         dd_df[col] = wealth / wealth.cummax() - 1
 
-    dd_df.plot(ax=ax)
+#     dd_df.plot(ax=ax)
 
-    ax.set_title(title)
-    ax.set_ylabel("Drawdown")
-    ax.grid(True)
+#     ax.set_title(title)
+#     ax.set_ylabel("Drawdown")
+#     ax.grid(True)
 
-    plt.show()
+#     plt.show()
 
 
 # def plot_weights_over_time(weights_dict):

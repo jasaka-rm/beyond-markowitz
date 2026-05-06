@@ -354,6 +354,72 @@ def print_recovery_table(recovery_stats, universe_name):
 
 
 # -----------------------------
+# 3. PLOTS (5.4 Risk-adjusted performance)
+# -----------------------------
+def plot_sharpe_comparison(results, universe_name, filename):
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+
+    results["Sharpe Ratio"].plot(kind="bar", ax=ax, color="#2563EB")
+
+    ax.set_title(f"Sharpe Ratio Comparison — {universe_name}", fontsize=14, fontweight="bold")
+    ax.set_ylabel("Sharpe Ratio", fontsize=10)
+    ax.set_xlabel("Method", fontsize=10)
+    ax.grid(axis="y")
+
+    for i, v in enumerate(results["Sharpe Ratio"].values):
+        ax.text(i, v + 0.02, f"{v:.2f}", ha="center", fontsize=9)
+
+    save_plot(filename)
+
+
+def compute_rolling_sharpe(returns, window=12, rf=0.0):
+    excess = returns - rf / 12
+    rolling_mean = excess.rolling(window).mean()
+    rolling_std = excess.rolling(window).std()
+    rolling_sharpe = (rolling_mean / rolling_std) * np.sqrt(12)
+    return rolling_sharpe
+
+
+def plot_rolling_sharpe(returns_df, universe_name, filename, window=12):
+    fig, ax = plt.subplots(figsize=(13, 5))
+
+    rolling_data = {}
+
+    for col in returns_df.columns:
+        rolling_data[col] = compute_rolling_sharpe(returns_df[col], window=window)
+
+    rolling_df = pd.DataFrame(rolling_data, index=returns_df.index)
+    rolling_df.plot(ax=ax, linewidth=1.8)
+
+    ax.axhline(0, color="#94A3B8", linestyle="--", linewidth=1)
+    ax.set_title(f"Rolling {window}-Month Sharpe Ratio — {universe_name}", fontsize=14, fontweight="bold")
+    ax.set_ylabel("Rolling Sharpe", fontsize=10)
+    ax.set_xlabel("Date", fontsize=10)
+    ax.grid(True)
+    ax.legend(title="Method", fontsize=9)
+
+    save_plot(filename)
+
+
+def print_risk_adjusted_table(results, universe_name, filename_csv):
+    table = results[[
+        "Annualized Return",
+        "Annualized Volatility",
+        "Sharpe Ratio",
+        "Calmar Ratio",
+    ]].copy()
+
+    print("\n" + "═" * 60)
+    print(f"  RISK-ADJUSTED PERFORMANCE — {universe_name}")
+    print("═" * 60)
+    print(table.round(4))
+    print("═" * 60 + "\n")
+
+    table.round(4).to_csv(os.path.join("plots", filename_csv))
+    print(f"  ✓ Saved: plots/{filename_csv}")
+
+
+# -----------------------------
 # 4. ANALYSIS PIPELINE
 # -----------------------------
 def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels, universe_name, file_prefix):
@@ -418,29 +484,49 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
     print(results.round(4))
     
     print("Step 5: Generating plots 5.2...")
-    plot_weights_over_time(
-    weights_dict,
-    asset_labels,
-    universe_name,
-    f"{file_prefix}_weights.png",
-)
+    # plot_weights_over_time(
+    # weights_dict,
+    # asset_labels,
+    # universe_name,
+    # f"{file_prefix}_weights.png",
+# )
 
-    plot_quantitative_stability(
+    # plot_quantitative_stability(
+    #     results,
+    #     universe_name,
+    #     f"{file_prefix}_stability_metrics.png",
+    # )
+
+    # print("Step 6: Generating plots 5.3...")
+    # recovery_stats = plot_drawdown_with_recovery(
+    #     returns_df,
+    #     universe_name,
+    #     f"{file_prefix}_drawdowns.png"
+    # )
+
+    # print_recovery_table(recovery_stats, universe_name)
+
+
+    print("Step 7: Generating plots 5.4 (risk-adjusted performance plots)...")
+
+    plot_sharpe_comparison(
         results,
         universe_name,
-        f"{file_prefix}_stability_metrics.png",
+        f"{file_prefix}_sharpe_comparison.png",
     )
 
-    print("Step 6: Generating plots 5.3...")
-    recovery_stats = plot_drawdown_with_recovery(
+    plot_rolling_sharpe(
         returns_df,
         universe_name,
-        f"{file_prefix}_drawdowns.png"
+        f"{file_prefix}_rolling_sharpe.png",
+        window=12,
     )
 
-    print_recovery_table(recovery_stats, universe_name)
-
-
+    print_risk_adjusted_table(
+        results,
+        universe_name,
+        f"{file_prefix}_risk_adjusted_table.csv",
+    )
 
 
 
