@@ -1,0 +1,15 @@
+ETF_TICKERS = ["SPY", "EFA", "EEM", "TLT", "GLD", "HYG"]
+
+ETF_START_DATE = "2005-01-01"
+ETF_LOOKBACK = 12
+ETF_MA_WINDOW = 12
+ETF_ROLLING_WINDOW = 36
+
+ETF_ASSET_LABELS = {
+    "SPY": "SPY",
+    "EFA": "EFA",
+    "EEM": "EEM",
+    "TLT": "TLT",
+    "GLD": "GLD",
+    "HYG": "HYG",
+}
