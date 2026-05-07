@@ -94,7 +94,7 @@ def print_signal_summary(combined_signal, momentum_signal, trend_signal, asset_l
 
 
 # -----------------------------
-# 3. PLOTS (5.1 Signal Validation) (Allocation Stability Analysis)
+# 3. PLOTS (5.1 Signal Validation)
 # -----------------------------
 def plot_signal_heatmap(combined_signal, asset_labels, title, filename):
     data = combined_signal.rename(columns=asset_labels).T
@@ -136,8 +136,12 @@ def plot_average_signal(momentum_signal, trend_signal, combined_signal, title, f
     fig, axes = plt.subplots(3, 1, figsize=(13, 9), sharex=True)
     fig.suptitle(title, fontsize=15, fontweight="bold", y=1.01)
 
+    # More interpretable than averaging ranks:
+    # share of assets with positive momentum at each date
+    momentum_breadth = (momentum_signal > 0).astype(float)
+
     datasets = [
-        (momentum_signal.rank(axis=1, pct=True), "Momentum Rank", "#2563EB"),
+        (momentum_breadth, "Momentum Breadth", "#2563EB"),
         (trend_signal, "Trend Signal", "#16A34A"),
         (combined_signal, "Combined Signal", "#7C3AED"),
     ]
@@ -179,16 +183,23 @@ def plot_average_signal(momentum_signal, trend_signal, combined_signal, title, f
 
 def plot_signal_dispersion(combined_signal, title, filename):
     dispersion = combined_signal.std(axis=1)
-    roll_disp = dispersion.rolling(3).mean()
 
     fig, ax = plt.subplots(figsize=(13, 4.5))
 
-    ax.fill_between(dispersion.index, 0, dispersion, alpha=0.2, color="#7C3AED")
-    ax.plot(dispersion.index, dispersion, color="#7C3AED", alpha=0.5, linewidth=1.2, label="Monthly std")
-    ax.plot(roll_disp.index, roll_disp, color="#7C3AED", linewidth=2.2, label="3-month MA")
-
     low_threshold = dispersion.quantile(0.25)
-    ax.axhline(low_threshold, color="#DC2626", linestyle=":", linewidth=1.3, label=f"25th pct ({low_threshold:.2f})")
+    low_share = (dispersion <= low_threshold).mean() * 100
+
+    ax.fill_between(dispersion.index, 0, dispersion, alpha=0.2, color="#7C3AED")
+    ax.plot(dispersion.index, dispersion, color="#7C3AED", linewidth=1.2, label="Monthly std")
+
+    ax.axhline(
+        low_threshold,
+        color="#DC2626",
+        linestyle=":",
+        linewidth=1.3,
+        label=f"25th pct ({low_threshold:.2f})",
+    )
+
     ax.fill_between(
         dispersion.index,
         0,
@@ -196,9 +207,10 @@ def plot_signal_dispersion(combined_signal, title, filename):
         where=dispersion <= low_threshold,
         alpha=0.35,
         color="#FCA5A5",
-        label="Low differentiation",
+        label=f"Low differentiation ({low_share:.1f}%)",
     )
 
+    # ax.set_xlim(left=pd.Timestamp("2018-01-01"))
     ax.set_title(title, fontsize=14, fontweight="bold")
     ax.set_ylabel("Std of combined signal across assets", fontsize=10)
     ax.set_xlabel("Date", fontsize=10)
@@ -330,8 +342,8 @@ def plot_drawdown_with_recovery(returns_df, universe_name, filename):
     fig.tight_layout()
     fig.savefig(f"plots/{filename}", dpi=150, bbox_inches="tight")
 
-    plt.show()        # 👈 show on screen
-    plt.close(fig)    # 👈 then close to avoid memory issues
+    plt.show()   
+    plt.close(fig)
 
     print(f"  ✓ Saved: plots/{filename}")
 
@@ -420,6 +432,108 @@ def print_risk_adjusted_table(results, universe_name, filename_csv):
 
 
 # -----------------------------
+# 3. PLOTS (5.5 Turnover)
+# -----------------------------
+def compute_turnover_series(weights_df):
+    turnover_series = weights_df.diff().abs().sum(axis=1)
+    return turnover_series.dropna()
+
+
+def plot_annual_turnover(results, weights_dict, universe_name, filename):
+    annual_turnover = {}
+
+    for method in weights_dict:
+        turnover_series = compute_turnover_series(weights_dict[method])
+        annual_turnover[method] = turnover_series.mean() * 12
+
+    annual_turnover = pd.Series(annual_turnover)
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    annual_turnover.plot(kind="bar", ax=ax, color="#D97706")
+
+    ax.set_title(f"Annual Turnover — {universe_name}", fontsize=14, fontweight="bold")
+    ax.set_ylabel("Annualized turnover", fontsize=10)
+    ax.set_xlabel("Method", fontsize=10)
+    ax.grid(axis="y")
+
+    for i, v in enumerate(annual_turnover.values):
+        ax.text(i, v + 0.02, f"{v:.2f}", ha="center", fontsize=9)
+
+    save_plot(filename)
+
+
+def compute_regimes(monthly_returns, window=6):
+    """
+    Simple regime classification based on rolling volatility of an equal-weight
+    universe proxy. Months above the median rolling volatility are classified
+    as high-volatility regimes; the rest are low-volatility regimes.
+    """
+    universe_proxy = monthly_returns.mean(axis=1)
+    rolling_vol = universe_proxy.rolling(window).std()
+
+    threshold = rolling_vol.median()
+    regimes = pd.Series(index=monthly_returns.index, dtype="object")
+    regimes.loc[rolling_vol <= threshold] = "Low-vol regime"
+    regimes.loc[rolling_vol > threshold] = "High-vol regime"
+
+    return regimes.dropna()
+
+
+def plot_turnover_by_regime(weights_dict, monthly_returns, universe_name, filename):
+    regimes = compute_regimes(monthly_returns, window=6)
+
+    rows = []
+    for method in weights_dict:
+        turnover_series = compute_turnover_series(weights_dict[method])
+        aligned_regimes = regimes.reindex(turnover_series.index).dropna()
+        aligned_turnover = turnover_series.reindex(aligned_regimes.index)
+
+        for regime_name in ["Low-vol regime", "High-vol regime"]:
+            mask = aligned_regimes == regime_name
+            avg_turnover = aligned_turnover.loc[mask].mean() * 12
+            rows.append({
+                "Method": method,
+                "Regime": regime_name,
+                "Annualized Turnover": avg_turnover,
+            })
+
+    df = pd.DataFrame(rows)
+    pivot = df.pivot(index="Method", columns="Regime", values="Annualized Turnover")
+
+    fig, ax = plt.subplots(figsize=(10, 4.8))
+    pivot.plot(kind="bar", ax=ax)
+
+    ax.set_title(f"Turnover Across Regimes — {universe_name}", fontsize=14, fontweight="bold")
+    ax.set_ylabel("Annualized turnover", fontsize=10)
+    ax.set_xlabel("Method", fontsize=10)
+    ax.grid(axis="y")
+    ax.legend(title="Regime", fontsize=9)
+
+    save_plot(filename)
+
+
+def print_turnover_table(results, weights_dict, universe_name, filename_csv):
+    annual_turnover = {}
+
+    for method in weights_dict:
+        turnover_series = compute_turnover_series(weights_dict[method])
+        annual_turnover[method] = turnover_series.mean() * 12
+
+    turnover_df = pd.DataFrame({
+        "Annualized Turnover": annual_turnover
+    })
+
+    print("\n" + "═" * 60)
+    print(f"  TURNOVER AND IMPLEMENTATION REALISM — {universe_name}")
+    print("═" * 60)
+    print(turnover_df.round(4))
+    print("═" * 60 + "\n")
+
+    turnover_df.round(4).to_csv(os.path.join("plots", filename_csv))
+    print(f"  ✓ Saved: plots/{filename_csv}")
+
+
+# -----------------------------
 # 4. ANALYSIS PIPELINE
 # -----------------------------
 def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels, universe_name, file_prefix):
@@ -446,31 +560,31 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
     print_signal_summary(combined_signal, momentum, trend, asset_labels, universe_name)
 
     print("Step 3: Generating plots...")
-    # plot_signal_heatmap(
-    #     combined_signal,
-    #     asset_labels,
-    #     f"Combined Signal Heatmap — {universe_name}",
-    #     f"{file_prefix}_signal_heatmap.png",
-    # )
-    # plot_average_signal(
-    #     momentum,
-    #     trend,
-    #     combined_signal,
-    #     f"Average Signal Strength Over Time — {universe_name}",
-    #     f"{file_prefix}_signal_average.png",
-    # )
-    # plot_signal_dispersion(
-    #     combined_signal,
-    #     f"Cross-Sectional Signal Dispersion — {universe_name}",
-    #     f"{file_prefix}_signal_dispersion.png",
-    # )
-    # plot_ranking_turnover(
-    #     combined_signal,
-    #     f"Signal Ranking Turnover Over Time — {universe_name}",
-    #     f"{file_prefix}_signal_ranking_turnover.png",
-    # )
+    plot_signal_heatmap(
+        combined_signal,
+        asset_labels,
+        f"Combined Signal Heatmap — {universe_name}",
+        f"{file_prefix}_signal_heatmap.png",
+    )
+    plot_average_signal(
+        momentum,
+        trend,
+        combined_signal,
+        f"Average Signal Strength Over Time — {universe_name}",
+        f"{file_prefix}_signal_average.png",
+    )
+    plot_signal_dispersion(
+        combined_signal,
+        f"Cross-Sectional Signal Dispersion — {universe_name}",
+        f"{file_prefix}_signal_dispersion.png",
+    )
+    plot_ranking_turnover(
+        combined_signal,
+        f"Signal Ranking Turnover Over Time — {universe_name}",
+        f"{file_prefix}_signal_ranking_turnover.png",
+    )
 
-    # print(f"\n✓ All plots 5.1 saved to /plots for {universe_name}")
+    print(f"\n✓ All plots 5.1 saved to /plots for {universe_name}")
 
     print("Step 4: Running allocation analysis...")
 
@@ -484,27 +598,27 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
     print(results.round(4))
     
     print("Step 5: Generating plots 5.2...")
-    # plot_weights_over_time(
-    # weights_dict,
-    # asset_labels,
-    # universe_name,
-    # f"{file_prefix}_weights.png",
-# )
+    plot_weights_over_time(
+    weights_dict,
+    asset_labels,
+    universe_name,
+    f"{file_prefix}_weights.png",
+)
 
-    # plot_quantitative_stability(
-    #     results,
-    #     universe_name,
-    #     f"{file_prefix}_stability_metrics.png",
-    # )
+    plot_quantitative_stability(
+        results,
+        universe_name,
+        f"{file_prefix}_stability_metrics.png",
+    )
 
-    # print("Step 6: Generating plots 5.3...")
-    # recovery_stats = plot_drawdown_with_recovery(
-    #     returns_df,
-    #     universe_name,
-    #     f"{file_prefix}_drawdowns.png"
-    # )
+    print("Step 6: Generating plots 5.3...")
+    recovery_stats = plot_drawdown_with_recovery(
+        returns_df,
+        universe_name,
+        f"{file_prefix}_drawdowns.png"
+    )
 
-    # print_recovery_table(recovery_stats, universe_name)
+    print_recovery_table(recovery_stats, universe_name)
 
 
     print("Step 7: Generating plots 5.4 (risk-adjusted performance plots)...")
@@ -528,6 +642,28 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         f"{file_prefix}_risk_adjusted_table.csv",
     )
 
+    print("Step 8: Generating plots 5.5 (Generating turnover plots)...")
+
+    plot_annual_turnover(
+        results,
+        weights_dict,
+        universe_name,
+        f"{file_prefix}_annual_turnover.png",
+    )
+
+    plot_turnover_by_regime(
+        weights_dict,
+        monthly_returns,
+        universe_name,
+        f"{file_prefix}_turnover_by_regime.png",
+    )
+
+    print_turnover_table(
+        results,
+        weights_dict,
+        universe_name,
+        f"{file_prefix}_turnover_table.csv",
+    )
 
 
 # -----------------------------
