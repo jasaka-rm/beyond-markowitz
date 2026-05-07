@@ -181,42 +181,42 @@ def plot_average_signal(momentum_signal, trend_signal, combined_signal, title, f
     save_plot(filename)
 
 
-def plot_signal_dispersion(combined_signal, title, filename):
-    dispersion = combined_signal.std(axis=1)
+# def plot_signal_dispersion(combined_signal, title, filename):
+#     dispersion = combined_signal.std(axis=1)
 
-    fig, ax = plt.subplots(figsize=(13, 4.5))
+#     fig, ax = plt.subplots(figsize=(13, 4.5))
 
-    low_threshold = dispersion.quantile(0.25)
-    low_share = (dispersion <= low_threshold).mean() * 100
+#     low_threshold = dispersion.quantile(0.25)
+#     low_share = (dispersion <= low_threshold).mean() * 100
 
-    ax.fill_between(dispersion.index, 0, dispersion, alpha=0.2, color="#7C3AED")
-    ax.plot(dispersion.index, dispersion, color="#7C3AED", linewidth=1.2, label="Monthly std")
+#     ax.fill_between(dispersion.index, 0, dispersion, alpha=0.2, color="#7C3AED")
+#     ax.plot(dispersion.index, dispersion, color="#7C3AED", linewidth=1.2, label="Monthly std")
 
-    ax.axhline(
-        low_threshold,
-        color="#DC2626",
-        linestyle=":",
-        linewidth=1.3,
-        label=f"25th pct ({low_threshold:.2f})",
-    )
+#     ax.axhline(
+#         low_threshold,
+#         color="#DC2626",
+#         linestyle=":",
+#         linewidth=1.3,
+#         label=f"25th pct ({low_threshold:.2f})",
+#     )
 
-    ax.fill_between(
-        dispersion.index,
-        0,
-        dispersion,
-        where=dispersion <= low_threshold,
-        alpha=0.35,
-        color="#FCA5A5",
-        label=f"Low differentiation ({low_share:.1f}%)",
-    )
+#     ax.fill_between(
+#         dispersion.index,
+#         0,
+#         dispersion,
+#         where=dispersion <= low_threshold,
+#         alpha=0.35,
+#         color="#FCA5A5",
+#         label=f"Low differentiation ({low_share:.1f}%)",
+#     )
 
-    # ax.set_xlim(left=pd.Timestamp("2018-01-01"))
-    ax.set_title(title, fontsize=14, fontweight="bold")
-    ax.set_ylabel("Std of combined signal across assets", fontsize=10)
-    ax.set_xlabel("Date", fontsize=10)
-    ax.legend(fontsize=9)
+#     # ax.set_xlim(left=pd.Timestamp("2018-01-01"))
+#     ax.set_title(title, fontsize=14, fontweight="bold")
+#     ax.set_ylabel("Std of combined signal across assets", fontsize=10)
+#     ax.set_xlabel("Date", fontsize=10)
+#     ax.legend(fontsize=9)
 
-    save_plot(filename)
+#     save_plot(filename)
 
 
 def plot_ranking_turnover(combined_signal, title, filename):
@@ -573,11 +573,11 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         f"Average Signal Strength Over Time — {universe_name}",
         f"{file_prefix}_signal_average.png",
     )
-    plot_signal_dispersion(
-        combined_signal,
-        f"Cross-Sectional Signal Dispersion — {universe_name}",
-        f"{file_prefix}_signal_dispersion.png",
-    )
+    # plot_signal_dispersion(
+    #     combined_signal,
+    #     f"Cross-Sectional Signal Dispersion — {universe_name}",
+    #     f"{file_prefix}_signal_dispersion.png",
+    # )
     plot_ranking_turnover(
         combined_signal,
         f"Signal Ranking Turnover Over Time — {universe_name}",
