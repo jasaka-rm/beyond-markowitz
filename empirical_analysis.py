@@ -47,6 +47,7 @@ STYLE = {
 }
 plt.rcParams.update(STYLE)
 
+colors = ["#7C3AED", "#2563EB", "#16A34A"]
 
 # -----------------------------
 # 2. HELPERS
@@ -58,7 +59,8 @@ def ensure_plots_dir():
 def save_plot(filename):
     plt.tight_layout()
     plt.savefig(os.path.join("plots", filename), dpi=150, bbox_inches="tight")
-    plt.show()
+    # plt.show()
+    plt.close()
     print(f"  ✓ Saved: plots/{filename}")
 
 
@@ -281,8 +283,6 @@ def plot_weights_over_time(weights_dict, asset_labels, universe_name, filename):
 def plot_quantitative_stability(results, universe_name, filename):
     fig, ax = plt.subplots(figsize=(8, 4.5))
 
-    colors = ["#7C3AED", "#2563EB", "#16A34A"]
-
     results["Weight Stability"].plot(
         kind="bar",
         ax=ax,
@@ -311,14 +311,14 @@ def plot_drawdown_with_recovery(returns_df, universe_name, filename):
 
     recovery_stats = {}
 
-    for col in returns_df.columns:
+    for col, color in zip(returns_df.columns, colors):
         returns = returns_df[col]
 
         wealth = (1 + returns).cumprod()
         peak = wealth.cummax()
         drawdown = wealth / peak - 1
 
-        ax.plot(drawdown.index, drawdown, label=col)
+        ax.plot(drawdown.index, drawdown, label=col, color=color)
 
         # --- Compute recovery time ---
         trough = drawdown.idxmin()
@@ -335,9 +335,6 @@ def plot_drawdown_with_recovery(returns_df, universe_name, filename):
 
         recovery_stats[col] = time_under_water
 
-        # Mark trough
-        ax.scatter(trough, drawdown.loc[trough], color="red", s=40)
-
     ax.set_title(f"Drawdowns with Recovery — {universe_name}", fontsize=14, fontweight="bold")
     ax.set_ylabel("Drawdown")
     ax.set_xlabel("Date")
@@ -347,7 +344,8 @@ def plot_drawdown_with_recovery(returns_df, universe_name, filename):
     fig.tight_layout()
     fig.savefig(f"plots/{filename}", dpi=150, bbox_inches="tight")
 
-    plt.show()   
+    # plt.show()
+    plt.close()   
     plt.close(fig)
 
     print(f"  ✓ Saved: plots/{filename}")
@@ -388,7 +386,7 @@ def print_drawdown_table(recovery_stats, avg_drawdown_stats, universe_name):
 def plot_sharpe_comparison(results, universe_name, filename):
     fig, ax = plt.subplots(figsize=(8, 4.5))
 
-    results["Sharpe Ratio"].plot(kind="bar", ax=ax, color="#2563EB")
+    results["Sharpe Ratio"].plot(kind="bar", ax=ax, color=colors)
 
     ax.set_title(f"Sharpe Ratio Comparison — {universe_name}", fontsize=14, fontweight="bold")
     ax.set_ylabel("Sharpe Ratio", fontsize=10)
@@ -418,7 +416,7 @@ def plot_rolling_sharpe(returns_df, universe_name, filename, window=12):
         rolling_data[col] = compute_rolling_sharpe(returns_df[col], window=window)
 
     rolling_df = pd.DataFrame(rolling_data, index=returns_df.index)
-    rolling_df.plot(ax=ax, linewidth=1.8)
+    rolling_df.plot(ax=ax, linewidth=1.8, color=colors)
 
     ax.axhline(0, color="#94A3B8", linestyle="--", linewidth=1)
     ax.set_title(f"Rolling {window}-Month Sharpe Ratio — {universe_name}", fontsize=14, fontweight="bold")
@@ -466,7 +464,7 @@ def plot_annual_turnover(results, weights_dict, universe_name, filename):
     annual_turnover = pd.Series(annual_turnover)
 
     fig, ax = plt.subplots(figsize=(8, 4.5))
-    annual_turnover.plot(kind="bar", ax=ax, color="#D97706")
+    annual_turnover.plot(kind="bar", ax=ax, color=colors)
 
     ax.set_title(f"Annual Turnover — {universe_name}", fontsize=14, fontweight="bold")
     ax.set_ylabel("Annualized turnover", fontsize=10)
@@ -516,9 +514,21 @@ def plot_turnover_by_regime(weights_dict, monthly_returns, universe_name, filena
 
     df = pd.DataFrame(rows)
     pivot = df.pivot(index="Method", columns="Regime", values="Annualized Turnover")
+    pivot = pivot.reindex(["MVO", "RP", "HRP"])
 
     fig, ax = plt.subplots(figsize=(10, 4.8))
-    pivot.plot(kind="bar", ax=ax)
+
+    color_map = {"MVO": "#7C3AED", "RP": "#2563EB", "HRP": "#16A34A",    }
+
+    methods = pivot.index.tolist()
+    x = np.arange(len(methods))
+    width = 0.35
+
+    ax.bar(x - width/2, pivot["High-vol regime"], width, label="High-vol regime", color=[color_map[m] for m in methods], alpha=1.0 )
+    ax.bar(x + width/2, pivot["Low-vol regime"], width, label="Low-vol regime", color=[color_map[m] for m in methods], alpha=0.5 )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(methods)
 
     ax.set_title(f"Turnover Across Regimes — {universe_name}", fontsize=14, fontweight="bold")
     ax.set_ylabel("Annualized turnover", fontsize=10)
