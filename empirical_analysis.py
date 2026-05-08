@@ -279,19 +279,24 @@ def plot_weights_over_time(weights_dict, asset_labels, universe_name, filename):
 
 # Estability bar chart
 def plot_quantitative_stability(results, universe_name, filename):
-    fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
+    fig, ax = plt.subplots(figsize=(8, 4.5))
 
-    results["Weight Stability"].plot(kind="bar", ax=axes[0], color="#7C3AED")
-    axes[0].set_title("Weight Stability")
-    axes[0].set_ylabel("Std of weights")
-    axes[0].grid(axis="y")
+    colors = ["#7C3AED", "#2563EB", "#16A34A"]
 
-    results["Average Turnover"].plot(kind="bar", ax=axes[1], color="#D97706")
-    axes[1].set_title("Turnover")
-    axes[1].set_ylabel("Average turnover")
-    axes[1].grid(axis="y")
+    results["Weight Stability"].plot(
+        kind="bar",
+        ax=ax,
+        color=colors
+    )
 
-    fig.suptitle(f"Stability Metrics — {universe_name}", fontsize=14)
+    ax.set_title(f"Weight Stability — {universe_name}", fontsize=14, fontweight="bold")
+    ax.set_ylabel("Std of weights", fontsize=10)
+    ax.set_xlabel("Method", fontsize=10)
+    ax.set_ylim(0, 0.22)
+    ax.grid(axis="y")
+
+    for i, v in enumerate(results["Weight Stability"].values):
+        ax.text(i, v, f"{v:.3f}", ha="center", va="bottom", fontsize=9)
 
     save_plot(filename)
 
@@ -351,18 +356,30 @@ def plot_drawdown_with_recovery(returns_df, universe_name, filename):
 
 
 # Recovery Time Table
-def print_recovery_table(recovery_stats, universe_name):
-    print("\n" + "═" * 50)
-    print(f"  RECOVERY TIME (Months) — {universe_name}")
-    print("═" * 50)
+def print_drawdown_table(recovery_stats, avg_drawdown_stats, universe_name):
+    print("\n" + "═" * 70)
+    print(f"  DRAWDOWN METRICS — {universe_name}")
+    print("═" * 70)
+    print(f"{'Method':<10} {'Max Time Under Water':>22} {'Avg Drawdown Depth':>22}")
+    print("─" * 70)
 
-    for k, v in recovery_stats.items():
-        if np.isnan(v):
-            print(f"  {k:<10}  Not recovered")
+    for method in recovery_stats.keys():
+        recovery = recovery_stats[method]
+        avg_dd = avg_drawdown_stats.get(method, np.nan)
+
+        if np.isnan(recovery):
+            recovery_str = "Not recovered"
         else:
-            print(f"  {k:<10}  {v:.1f} months")
+            recovery_str = f"{recovery:.1f} months"
 
-    print("═" * 50 + "\n")
+        if np.isnan(avg_dd):
+            avg_dd_str = "NaN"
+        else:
+            avg_dd_str = f"{avg_dd:.4f}"
+
+        print(f"{method:<10} {recovery_str:>22} {avg_dd_str:>22}")
+
+    print("═" * 70 + "\n")
 
 
 # -----------------------------
@@ -618,7 +635,8 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         f"{file_prefix}_drawdowns.png"
     )
 
-    print_recovery_table(recovery_stats, universe_name)
+    avg_drawdown_stats = results["Average Drawdown Depth"].to_dict()
+    print_drawdown_table(recovery_stats, avg_drawdown_stats, universe_name)
 
 
     print("Step 7: Generating plots 5.4 (risk-adjusted performance plots)...")

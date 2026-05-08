@@ -144,6 +144,19 @@ def max_drawdown(returns):
     return dd.min()
 
 
+def average_drawdown_depth(returns):
+    wealth = (1 + returns).cumprod()
+    peak = wealth.cummax()
+    drawdown = wealth / peak - 1
+
+    underwater = drawdown[drawdown < 0]
+
+    if len(underwater) == 0:
+        return 0.0
+
+    return underwater.abs().mean()
+
+
 def sharpe_ratio(returns, rf=0.0):
     excess = returns - rf / 12
 
@@ -182,6 +195,7 @@ def summary_table(returns_df, weights_dict):
             "Annualized Volatility": returns_df[method].std() * np.sqrt(12),
             "Sharpe Ratio": sharpe_ratio(returns_df[method]),
             "Max Drawdown": max_drawdown(returns_df[method]),
+            "Average Drawdown Depth": average_drawdown_depth(returns_df[method]),
             "Calmar Ratio": calmar_ratio(returns_df[method]),
             "Average Turnover": turnover(weights_dict[method]),
             "Weight Stability": weight_stability(weights_dict[method]),
