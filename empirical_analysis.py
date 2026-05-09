@@ -442,7 +442,7 @@ def print_risk_adjusted_table(results, universe_name, filename_csv):
     print(table.round(4))
     print("═" * 60 + "\n")
 
-    table.round(4).to_csv(os.path.join("plots", filename_csv))
+    #table.round(4).to_csv(os.path.join("plots", filename_csv))
     print(f"  ✓ Saved: plots/{filename_csv}")
 
 
@@ -492,51 +492,6 @@ def compute_regimes(monthly_returns, window=6):
     regimes.loc[rolling_vol > threshold] = "High-vol regime"
 
     return regimes.dropna()
-
-
-def plot_turnover_by_regime(weights_dict, monthly_returns, universe_name, filename):
-    regimes = compute_regimes(monthly_returns, window=6)
-
-    rows = []
-    for method in weights_dict:
-        turnover_series = compute_turnover_series(weights_dict[method])
-        aligned_regimes = regimes.reindex(turnover_series.index).dropna()
-        aligned_turnover = turnover_series.reindex(aligned_regimes.index)
-
-        for regime_name in ["Low-vol regime", "High-vol regime"]:
-            mask = aligned_regimes == regime_name
-            avg_turnover = aligned_turnover.loc[mask].mean() * 12
-            rows.append({
-                "Method": method,
-                "Regime": regime_name,
-                "Annualized Turnover": avg_turnover,
-            })
-
-    df = pd.DataFrame(rows)
-    pivot = df.pivot(index="Method", columns="Regime", values="Annualized Turnover")
-    pivot = pivot.reindex(["MVO", "RP", "HRP"])
-
-    fig, ax = plt.subplots(figsize=(10, 4.8))
-
-    color_map = {"MVO": "#7C3AED", "RP": "#2563EB", "HRP": "#16A34A",    }
-
-    methods = pivot.index.tolist()
-    x = np.arange(len(methods))
-    width = 0.35
-
-    ax.bar(x - width/2, pivot["High-vol regime"], width, label="High-vol regime", color=[color_map[m] for m in methods], alpha=1.0 )
-    ax.bar(x + width/2, pivot["Low-vol regime"], width, label="Low-vol regime", color=[color_map[m] for m in methods], alpha=0.5 )
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(methods)
-
-    ax.set_title(f"Turnover Across Regimes — {universe_name}", fontsize=14, fontweight="bold")
-    ax.set_ylabel("Annualized turnover", fontsize=10)
-    ax.set_xlabel("Method", fontsize=10)
-    ax.grid(axis="y")
-    ax.legend(title="Regime", fontsize=9)
-
-    save_plot(filename)
 
 
 def print_turnover_table(results, weights_dict, universe_name, filename_csv):
@@ -677,13 +632,6 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         weights_dict,
         universe_name,
         f"{file_prefix}_annual_turnover.png",
-    )
-
-    plot_turnover_by_regime(
-        weights_dict,
-        monthly_returns,
-        universe_name,
-        f"{file_prefix}_turnover_by_regime.png",
     )
 
     print_turnover_table(
