@@ -57,12 +57,9 @@ def normalize_weights(weights):
     return weights
 
 
-def mvo_weights(train_returns, signal_tilt=None):
+def mvo_weights(train_returns):
     mu = train_returns.mean()
     cov = train_returns.cov()
-
-    if signal_tilt is not None:
-        mu = mu * signal_tilt.reindex(mu.index).fillna(1.0)
 
     try:
         raw = np.linalg.pinv(cov.values) @ mu.values
@@ -96,7 +93,7 @@ def hrp_weights(train_returns):
 # -----------------------------
 # 4. ROLLING BACKTEST
 # -----------------------------
-def run_backtest(monthly_returns, combined_signal, window):
+def run_backtest(monthly_returns, window):
     strategy_returns = {"MVO": [], "RP": [], "HRP": []}
     weights_history = {"MVO": [], "RP": [], "HRP": []}
     rebalance_dates = []
@@ -105,9 +102,7 @@ def run_backtest(monthly_returns, combined_signal, window):
         train = monthly_returns.iloc[t - window:t]
         next_ret = monthly_returns.iloc[t + 1]
 
-        signal_t = combined_signal.iloc[t].reindex(train.columns)
-
-        w_mvo = mvo_weights(train, signal_tilt=signal_t)
+        w_mvo = mvo_weights(train)
         w_rp = risk_parity_weights(train)
         w_hrp = hrp_weights(train)
 
@@ -217,41 +212,4 @@ def summary_table(returns_df, weights_dict):
 #     ax.set_ylabel("Growth of 1€")
 #     ax.grid(True)
 
-#     plt.show()
-
-
-# def plot_drawdowns(returns_df, title):
-#     fig, ax = plt.subplots(figsize=(10, 6))
-
-#     dd_df = pd.DataFrame(index=returns_df.index)
-
-#     for col in returns_df.columns:
-#         wealth = (1 + returns_df[col]).cumprod()
-#         dd_df[col] = wealth / wealth.cummax() - 1
-
-#     dd_df.plot(ax=ax)
-
-#     ax.set_title(title)
-#     ax.set_ylabel("Drawdown")
-#     ax.grid(True)
-
-#     plt.show()
-
-
-# def plot_weights_over_time(weights_dict):
-#     methods = list(weights_dict.keys())
-
-#     fig, axes = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
-
-#     for i, method in enumerate(methods):
-#         weights = weights_dict[method]
-#         weights.plot(ax=axes[i])
-#         axes[i].set_title(f"{method} Weights Over Time")
-#         axes[i].set_ylabel("Weight")
-#         axes[i].set_ylim(0, 1)
-#         axes[i].grid(True)
-
-#     axes[-1].set_xlabel("Date")
-
-#     plt.tight_layout()
 #     plt.show()
