@@ -325,6 +325,66 @@ def print_turnover_table(results, weights_dict, universe_name, filename_csv):
 
 
 # -----------------------------
+# 3. PLOTS (5.5 Bootstrap)
+# -----------------------------
+def plot_bootstrap_stability(results_df, results_boot, universe_name, filename):
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    methods = results_df.index
+
+    df = pd.DataFrame({
+        "Standard": results_df["Weight Stability"],
+        "Bootstrap": results_boot["Weight Stability"]
+    })
+
+    ax = df.plot(kind="bar", figsize=(8, 4.5))
+
+    ax.set_title(f"Allocation Stability: Standard vs Bootstrap — {universe_name}", fontweight="bold")
+    ax.set_ylabel("Weight Stability (Std Dev)")
+    ax.set_xlabel("Method")
+    ax.grid(axis="y")
+
+    for i in range(len(df)):
+        for j, col in enumerate(df.columns):
+            value = df.iloc[i, j]
+            ax.text(i + (j - 0.15), value + 0.002, f"{value:.3f}", ha="center", fontsize=8)
+
+    plt.tight_layout()
+    plt.savefig(f"plots/{filename}", dpi=150)
+    plt.close()
+
+    print(f"✓ Saved: plots/{filename}")
+
+
+def plot_bootstrap_turnover(results_df, results_boot, universe_name, filename):
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    df = pd.DataFrame({
+        "Standard": results_df["Average Turnover"],
+        "Bootstrap": results_boot["Average Turnover"]
+    })
+
+    ax = df.plot(kind="bar", figsize=(8, 4.5))
+
+    ax.set_title(f"Turnover: Standard vs Bootstrap — {universe_name}", fontweight="bold")
+    ax.set_ylabel("Average Turnover")
+    ax.set_xlabel("Method")
+    ax.grid(axis="y")
+
+    for i in range(len(df)):
+        for j, col in enumerate(df.columns):
+            value = df.iloc[i, j]
+            ax.text(i + (j - 0.15), value + 0.02, f"{value:.2f}", ha="center", fontsize=8)
+
+    plt.tight_layout()
+    plt.savefig(f"plots/{filename}", dpi=150)
+    plt.close()
+
+    print(f"✓ Saved: plots/{filename}")
+
+# -----------------------------
 # 4. ANALYSIS PIPELINE
 # -----------------------------
 def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels, universe_name, file_prefix):
@@ -340,7 +400,7 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
     print(f"  ✓ Done in {time.time() - t0:.1f}s")
 
 
-    print("Step 4: Running allocation analysis...")
+    print("Step 2: Running allocation analysis (standard)...")
 
     returns_df, weights_dict = run_backtest(
         monthly_returns=monthly_returns,
@@ -348,10 +408,18 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         mode="standard"
     )
 
+    print("Step 3: Running allocation analysis (bootstrap)...")
+
+    returns_boot, weights_boot = run_backtest(
+        monthly_returns=monthly_returns,
+        window=36 if "ETF" in universe_name else 12,
+        mode="bootstrap"
+    )
+
     results = summary_table(returns_df, weights_dict)
     print(results.round(4))
     
-    print("Step 5: Generating plots 5.2...")
+    print("Step 4: Generating plots 5.1...")
     plot_weights_over_time(
     weights_dict,
     asset_labels,
@@ -365,7 +433,7 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         f"{file_prefix}_stability_metrics.png",
     )
 
-    print("Step 6: Generating plots 5.3...")
+    print("Step 5: Generating plots 5.2...")
     recovery_stats = plot_drawdown_with_recovery(
         returns_df,
         universe_name,
@@ -376,7 +444,7 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
     print_drawdown_table(recovery_stats, avg_drawdown_stats, universe_name)
 
 
-    print("Step 7: Generating plots 5.4 (risk-adjusted performance plots)...")
+    print("Step 6: Generating plots 5.3 (risk-adjusted performance plots)...")
 
     plot_sharpe_comparison(
         results,
@@ -397,7 +465,7 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         f"{file_prefix}_risk_adjusted_table.csv",
     )
 
-    print("Step 8: Generating plots 5.5 (Generating turnover plots)...")
+    print("Step 7: Generating plots 5.4 (Generating turnover plots)...")
 
     plot_annual_turnover(
         results,
@@ -411,6 +479,38 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         weights_dict,
         universe_name,
         f"{file_prefix}_turnover_table.csv",
+    )
+
+    print("Step 8: Generating plots 5.5 (Generating bootstrap plots)...")
+
+    results_std = summary_table(returns_df, weights_dict)
+    results_boot = summary_table(returns_boot, weights_boot)
+
+    print("\nStandard results:")
+    print(results_std.round(4))
+
+    print("\nBootstrap results:")
+    print(results_boot.round(4))
+
+    plot_bootstrap_stability(
+        results_std, 
+        results_boot, 
+        "ETF Universe", 
+        "etf_bootstrap_stability.png"
+    )
+
+    plot_bootstrap_stability(
+        results_std, 
+        results_boot, 
+        "Crypto Universe", 
+        "crypto_bootstrap_stability.png"
+    )    
+    
+    plot_bootstrap_turnover(
+        results_std, 
+        results_boot, 
+        "Crypto Universe", 
+        "crypto_bootstrap_turnover.png"
     )
 
 

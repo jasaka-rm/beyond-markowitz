@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
 
+from scipy.optimize import minimize
 from pypfopt.hierarchical_portfolio import HRPOpt
 
 
