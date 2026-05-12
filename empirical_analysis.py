@@ -345,6 +345,7 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
     returns_df, weights_dict = run_backtest(
         monthly_returns=monthly_returns,
         window=36 if "ETF" in universe_name else 12,
+        mode="standard"
     )
 
     results = summary_table(returns_df, weights_dict)

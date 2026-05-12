@@ -71,6 +71,18 @@ def mvo_weights(train_returns):
     return normalize_weights(weights)
 
 
+def bootstrap_weights(train, weight_func, n_boot=50):
+    weights_list = []
+
+    for _ in range(n_boot):
+        boot_sample = train.sample(frac=1, replace=True)
+        w = weight_func(boot_sample)
+        weights_list.append(w)
+
+    weights_df = pd.DataFrame(weights_list)
+    return weights_df.mean()
+
+
 def risk_parity_weights(train_returns, vol_floor=1e-4):
     vol = train_returns.std()
     vol = vol.clip(lower=vol_floor)
@@ -93,7 +105,7 @@ def hrp_weights(train_returns):
 # -----------------------------
 # 4. ROLLING BACKTEST
 # -----------------------------
-def run_backtest(monthly_returns, window):
+def run_backtest(monthly_returns, window, mode="standard"):
     strategy_returns = {"MVO": [], "RP": [], "HRP": []}
     weights_history = {"MVO": [], "RP": [], "HRP": []}
     rebalance_dates = []
@@ -102,9 +114,18 @@ def run_backtest(monthly_returns, window):
         train = monthly_returns.iloc[t - window:t]
         next_ret = monthly_returns.iloc[t + 1]
 
-        w_mvo = mvo_weights(train)
-        w_rp = risk_parity_weights(train)
-        w_hrp = hrp_weights(train)
+        if mode == "standard":
+            w_mvo = mvo_weights(train)
+            w_rp = risk_parity_weights(train)
+            w_hrp = hrp_weights(train)
+
+        elif mode == "bootstrap":
+            w_mvo = bootstrap_weights(train, mvo_weights)
+            w_rp  = bootstrap_weights(train, risk_parity_weights)
+            w_hrp = bootstrap_weights(train, hrp_weights)
+
+        else:
+            raise ValueError("mode must be 'standard' or 'bootstrap'")
 
         r_mvo = np.dot(w_mvo, next_ret)
         r_rp = np.dot(w_rp, next_ret)
