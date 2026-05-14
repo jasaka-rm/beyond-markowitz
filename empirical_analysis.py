@@ -303,6 +303,74 @@ def compute_regimes(monthly_returns, window=6):
     return regimes.dropna()
 
 
+
+def plot_turnover_by_regime(weights_dict, monthly_returns, universe_name, filename):
+    regimes = compute_regimes(monthly_returns, window=6)
+
+    rows = []
+    for method in weights_dict:
+        turnover_series = compute_turnover_series(weights_dict[method])
+        aligned_regimes = regimes.reindex(turnover_series.index).dropna()
+        aligned_turnover = turnover_series.reindex(aligned_regimes.index)
+
+        for regime_name in ["Low-vol regime", "High-vol regime"]:
+            mask = aligned_regimes == regime_name
+            avg_turnover = aligned_turnover.loc[mask].mean() * 12
+            rows.append({
+                "Method": method,
+                "Regime": regime_name,
+                "Annualized Turnover": avg_turnover,
+            })
+
+    df = pd.DataFrame(rows)
+    pivot = df.pivot(index="Method", columns="Regime", values="Annualized Turnover")
+    pivot = pivot.reindex(["MVO", "RP", "HRP"])
+
+    fig, ax = plt.subplots(figsize=(10, 4.8))
+
+    color_map = {"MVO": "#7C3AED", "RP": "#2563EB", "HRP": "#16A34A",    }
+
+    methods = pivot.index.tolist()
+    x = np.arange(len(methods))
+    width = 0.35
+
+    bars_high = ax.bar(x - width/2, pivot["High-vol regime"], width, label="High-vol regime", color=[color_map[m] for m in methods], alpha=1.0)
+    bars_low = ax.bar(x + width/2, pivot["Low-vol regime"], width, label="Low-vol regime", color=[color_map[m] for m in methods], alpha=0.5)
+    
+    # Add labels
+    for bar in bars_high:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            height + 0.02,
+            f"{height:.2f}",
+            ha='center',
+            va='bottom',
+            fontsize=9
+        )
+
+    for bar in bars_low:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            height + 0.02,
+            f"{height:.2f}",
+            ha='center',
+            va='bottom',
+            fontsize=9
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(methods)
+
+    ax.set_title(f"Turnover Across Regimes — {universe_name}", fontsize=14, fontweight="bold")
+    ax.set_ylabel("Annualized turnover", fontsize=10)
+    ax.set_xlabel("Method", fontsize=10)
+    ax.grid(axis="y")
+    ax.legend(title="Regime", fontsize=9)
+
+    save_plot(filename)
+
 def print_turnover_table(results, weights_dict, universe_name, filename_csv):
     annual_turnover = {}
 
@@ -329,26 +397,65 @@ def print_turnover_table(results, weights_dict, universe_name, filename_csv):
 # -----------------------------
 def plot_bootstrap_stability(results_df, results_boot, universe_name, filename):
     import matplotlib.pyplot as plt
-    import pandas as pd
+    import numpy as np
 
-    methods = results_df.index
+    methods = results_df.index.tolist()
 
-    df = pd.DataFrame({
-        "Standard": results_df["Weight Stability"],
-        "Bootstrap": results_boot["Weight Stability"]
-    })
+    # Colors per method
+    colors = {
+        "MVO": "#7C3AED",
+        "RP": "#2563EB",
+        "HRP": "#16A34A"
+    }
 
-    ax = df.plot(kind="bar", figsize=(8, 4.5))
+    # Data
+    std_vals = results_df["Weight Stability"].values
+    boot_vals = results_boot["Weight Stability"].values
 
+    x = np.arange(len(methods))
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+
+    # Plot bars manually
+    for i, method in enumerate(methods):
+        color = colors.get(method, "#333333")
+
+        # Standard (full opacity)
+        ax.bar(
+            x[i] - width/2,
+            std_vals[i],
+            width,
+            color=color,
+            alpha=1.0,
+            label="Standard" if i == 0 else ""
+        )
+
+        # Bootstrap (lighter)
+        ax.bar(
+            x[i] + width/2,
+            boot_vals[i],
+            width,
+            color=color,
+            alpha=0.5,
+            label="Bootstrap" if i == 0 else ""
+        )
+
+    # Labels & title
     ax.set_title(f"Allocation Stability: Standard vs Bootstrap — {universe_name}", fontweight="bold")
     ax.set_ylabel("Weight Stability (Std Dev)")
     ax.set_xlabel("Method")
+    ax.set_xticks(x)
+    ax.set_xticklabels(methods)
     ax.grid(axis="y")
 
-    for i in range(len(df)):
-        for j, col in enumerate(df.columns):
-            value = df.iloc[i, j]
-            ax.text(i + (j - 0.15), value + 0.002, f"{value:.3f}", ha="center", fontsize=8)
+    # Value labels
+    for i in range(len(methods)):
+        ax.text(x[i] - width/2, std_vals[i] + 0.002, f"{std_vals[i]:.3f}", ha="center", fontsize=8)
+        ax.text(x[i] + width/2, boot_vals[i] + 0.002, f"{boot_vals[i]:.3f}", ha="center", fontsize=8)
+
+    # Legend (only once)
+    ax.legend()
 
     plt.tight_layout()
     plt.savefig(f"plots/{filename}", dpi=150)
@@ -358,25 +465,64 @@ def plot_bootstrap_stability(results_df, results_boot, universe_name, filename):
 
 
 def plot_bootstrap_turnover(results_df, results_boot, universe_name, filename):
-    import matplotlib.pyplot as plt
-    import pandas as pd
 
-    df = pd.DataFrame({
-        "Standard": results_df["Average Turnover"],
-        "Bootstrap": results_boot["Average Turnover"]
-    })
+    methods = results_df.index.tolist()
 
-    ax = df.plot(kind="bar", figsize=(8, 4.5))
+    # Colors per method
+    colors = {
+        "MVO": "#7C3AED",
+        "RP": "#2563EB",
+        "HRP": "#16A34A"
+    }
 
+    # Data
+    std_vals = results_df["Average Turnover"].values
+    boot_vals = results_boot["Average Turnover"].values
+
+    x = np.arange(len(methods))
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+
+    # Plot bars manually
+    for i, method in enumerate(methods):
+        color = colors.get(method, "#333333")
+
+        # Standard (full opacity)
+        ax.bar(
+            x[i] - width/2,
+            std_vals[i],
+            width,
+            color=color,
+            alpha=1.0,
+            label="Standard" if i == 0 else ""
+        )
+
+        # Bootstrap (lighter)
+        ax.bar(
+            x[i] + width/2,
+            boot_vals[i],
+            width,
+            color=color,
+            alpha=0.5,
+            label="Bootstrap" if i == 0 else ""
+        )
+
+    # Labels & title
     ax.set_title(f"Turnover: Standard vs Bootstrap — {universe_name}", fontweight="bold")
     ax.set_ylabel("Average Turnover")
     ax.set_xlabel("Method")
+    ax.set_xticks(x)
+    ax.set_xticklabels(methods)
     ax.grid(axis="y")
 
-    for i in range(len(df)):
-        for j, col in enumerate(df.columns):
-            value = df.iloc[i, j]
-            ax.text(i + (j - 0.15), value + 0.02, f"{value:.2f}", ha="center", fontsize=8)
+    # Value labels
+    for i in range(len(methods)):
+        ax.text(x[i] - width/2, std_vals[i] + 0.02, f"{std_vals[i]:.2f}", ha="center", fontsize=8)
+        ax.text(x[i] + width/2, boot_vals[i] + 0.02, f"{boot_vals[i]:.2f}", ha="center", fontsize=8)
+
+    # Legend
+    ax.legend(title="Estimation")
 
     plt.tight_layout()
     plt.savefig(f"plots/{filename}", dpi=150)
@@ -390,14 +536,10 @@ def plot_bootstrap_turnover(results_df, results_boot, universe_name, filename):
 def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels, universe_name, file_prefix):
     print(f"\n{universe_name}")
     print("Step 1: Downloading prices...")
-    t0 = time.time()
     prices_daily = download_prices(tickers, start_date)
     prices = to_monthly_prices(prices_daily)
-    print(f"  ✓ Done in {time.time() - t0:.1f}s — shape: {prices.shape}")
 
     monthly_returns = compute_returns(prices)
-
-    print(f"  ✓ Done in {time.time() - t0:.1f}s")
 
 
     print("Step 2: Running allocation analysis (standard)...")
@@ -474,6 +616,13 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
         f"{file_prefix}_annual_turnover.png",
     )
 
+    plot_turnover_by_regime(
+        weights_dict,
+        monthly_returns,
+        universe_name,
+        f"{file_prefix}_turnover_by_regime.png",
+    )
+
     print_turnover_table(
         results,
         weights_dict,
@@ -512,6 +661,7 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
 if __name__ == "__main__":
     ensure_plots_dir()
 
+    t0 = time.time()
     run_signal_validation(
         tickers=ETF_TICKERS,
         start_date=ETF_START_DATE,
@@ -521,7 +671,9 @@ if __name__ == "__main__":
         universe_name="ETF Universe",
         file_prefix="etf",
     )
+    print(f"  ✓ Done in {time.time() - t0:.1f}s")
 
+    t0 = time.time()
     run_signal_validation(
         tickers=CRYPTO_TICKERS,
         start_date=CRYPTO_START_DATE,
@@ -531,4 +683,4 @@ if __name__ == "__main__":
         universe_name="Crypto Universe",
         file_prefix="crypto",
     )
-    
+    print(f"  ✓ Done in {time.time() - t0:.1f}s")
