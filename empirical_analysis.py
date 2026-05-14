@@ -495,24 +495,16 @@ def run_signal_validation(tickers, start_date, lookback, ma_window, asset_labels
     plot_bootstrap_stability(
         results_std, 
         results_boot, 
-        "ETF Universe", 
-        "etf_bootstrap_stability.png"
+        universe_name,
+        f"{file_prefix}_bootstrap_stability.png",
     )
 
-    plot_bootstrap_stability(
-        results_std, 
-        results_boot, 
-        "Crypto Universe", 
-        "crypto_bootstrap_stability.png"
-    )    
-    
     plot_bootstrap_turnover(
         results_std, 
         results_boot, 
-        "Crypto Universe", 
-        "crypto_bootstrap_turnover.png"
+        universe_name,
+        f"{file_prefix}_bootstrap_turnover.png"
     )
-
 
 # -----------------------------
 # 5. MAIN

@@ -26,7 +26,7 @@ def compute_returns(prices):
 
 
 # -----------------------------
-# 2. SIGNAL CONSTRUCTION
+# 2. SIGNAL CONSTRUCTION (not used anymore)
 # -----------------------------
 def compute_momentum_signal(prices, lookback):
     return prices.pct_change(lookback)
@@ -84,12 +84,62 @@ def bootstrap_weights(train, weight_func, n_boot=50):
     return weights_df.mean()
 
 
-def risk_parity_weights(train_returns, vol_floor=1e-4):
-    vol = train_returns.std()
-    vol = vol.clip(lower=vol_floor)
+# def risk_parity_weights(train_returns, vol_floor=1e-4):
+#     vol = train_returns.std()
+#     vol = vol.clip(lower=vol_floor)
 
-    inv_vol = 1 / vol
-    return normalize_weights(inv_vol)
+#     inv_vol = 1 / vol
+#     return normalize_weights(inv_vol)
+
+
+def risk_parity_weights(train_returns, vol_floor=1e-6):
+
+    cov = train_returns.cov().values
+    n = cov.shape[0]
+
+    # --- Initial guess: equal weights ---
+    x0 = np.ones(n) / n
+
+    # --- Risk contribution function ---
+    def portfolio_variance(w):
+        return w @ cov @ w
+
+    def risk_contribution(w):
+        total_var = portfolio_variance(w)
+        marginal_contrib = cov @ w
+        return w * marginal_contrib / np.sqrt(total_var)
+
+    # --- Objective: minimize dispersion of risk contributions ---
+    def objective(w):
+        rc = risk_contribution(w)
+        return np.sum((rc - rc.mean())**2)
+
+    # --- Constraints ---
+    constraints = (
+        {"type": "eq", "fun": lambda w: np.sum(w) - 1},  # fully invested
+    )
+
+    bounds = tuple((0, 1) for _ in range(n))  # long-only
+
+    # --- Optimization ---
+    result = minimize(
+        objective,
+        x0,
+        method="SLSQP",
+        bounds=bounds,
+        constraints=constraints,
+        options={"disp": False, "ftol": 1e-10}
+    )
+
+    if not result.success:
+        # fallback: equal weights
+        weights = np.ones(n) / n
+    else:
+        weights = result.x
+
+    weights = pd.Series(weights, index=train_returns.columns)
+
+    return weights
 
 
 def hrp_weights(train_returns):
